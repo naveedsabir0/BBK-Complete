@@ -1,0 +1,62 @@
+﻿@page "/parts"
+@using MovieDatabaseBlazorServerApp.Models
+@inject PartService PartService
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+<h3>Part Details</h3>
+
+@if (parts != null && parts.Any())
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Part Name</th>
+                <th>Quantity</th>
+                <th>Cost</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var part in parts)
+            {
+                <tr>
+                    <td>@part.Name</td>
+                    <td>@part.Quantity</td>
+                    <td>@part.Cost</td>
+                    <td><button class="btn btn-danger" @onclick="() => DeletePart(part.Id)">Delete</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No parts available.</p>
+}
+
+<button class="btn btn-secondary" @onclick="NavigateToPartDetails">Further Details</button>
+
+@code {
+    List<Part> parts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadParts();
+    }
+
+    private async Task LoadParts()
+    {
+        parts = await PartService.GetAllPartsAsync();
+    }
+
+    private async Task DeletePart(int partId)
+    {
+        await PartService.DeletePartAsync(partId);
+        await LoadParts(); // Refresh the list of parts after deletion
+    }
+
+    private void NavigateToPartDetails()
+    {
+        NavigationManager.NavigateTo("/part-details");
+    }
+}

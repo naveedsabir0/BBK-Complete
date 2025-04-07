@@ -1,0 +1,70 @@
+﻿@page "/volunteerDetails/{id:int}"
+@using MovieDatabaseBlazorServerApp.Models
+@inject VolunteerService VolunteerService
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+<h3>Edit Volunteer</h3>
+
+@if (volunteer != null)
+{
+    <div class="form-group">
+        <label for="volunteerForename">Volunteer Forename:</label>
+        <input type="text" class="form-control" id="volunteerForename" @bind="volunteer.Forename">
+    </div>
+
+    <div class="form-group">
+        <label for="volunteerSurname">Volunteer Surname:</label>
+        <input type="text" class="form-control" id="volunteerSurname" @bind="volunteer.Surname">
+    </div>
+
+    <div class="form-group">
+        <label for="volunteerEmail">Volunteer Email:</label>
+        <input type="email" class="form-control" id="volunteerEmail" @bind="volunteer.Email">
+    </div>
+
+    <div class="form-group">
+        <label for="volunteerPhone">Volunteer Phone:</label>
+        <input type="tel" class="form-control" id="volunteerPhone" @bind="volunteer.Phone">
+    </div>
+
+    <div class="form-group">
+        <label for="volunteerAddress">Volunteer Address:</label>
+        <input type="text" class="form-control" id="volunteerAddress" @bind="volunteer.Address">
+    </div>
+
+    <button class="btn btn-success" @onclick="UpdateVolunteer">Update Volunteer</button>
+    <button class="btn btn-secondary" @onclick="GoBack">Cancel</button>
+}
+else
+{
+    <p>Loading...</p>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+    private Volunteer volunteer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        volunteer = await VolunteerService.GetVolunteerByIdAsync(id);
+    }
+
+    private async Task UpdateVolunteer()
+    {
+        try
+        {
+            await VolunteerService.UpdateVolunteerAsync(volunteer);
+            Navigation.NavigateTo("/volunteer");
+        }
+        catch (Exception ex)
+        {
+            // Handle any exceptions, such as validation errors
+            Console.WriteLine($"Error updating volunteer: {ex.Message}");
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/volunteer");
+    }
+}

@@ -1,0 +1,85 @@
+﻿@page "/Cyclists"
+@inherits PageBase
+@inject CyclistService CyclistService
+@implements IDisposable
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+<h3>Cyclists</h3>
+
+<NavLink class="nav-link" href="@GetCreateUrl()">Register New Cyclist</NavLink>
+
+<input type="text"
+       @bind="searchText"
+       @oninput="SearchTextChanged"
+       placeholder="Search by name, email, or phone number..." />
+
+@if (cyclists == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th><DisplayName For="@(() => cyclists.FirstOrDefault().Id)" /></th>
+                <th><DisplayName For="@(() => cyclists.FirstOrDefault().Name)" /></th>
+                <th><DisplayName For="@(() => cyclists.FirstOrDefault().DateOfBirth)" /></th>
+                <th><DisplayName For="@(() => cyclists.FirstOrDefault().Email)" /></th>
+                <th><DisplayName For="@(() => cyclists.FirstOrDefault().Phone)" /></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var cyclist in filteredCyclists)
+            {
+                <tr>
+                    <td>@cyclist.Id</td>
+                    <td><NavLink class="nav-link" href="@GetEditUrl(cyclist.Id)">@cyclist.Name</NavLink></td>
+                    <td>@(cyclist.DateOfBirth.HasValue ? cyclist.DateOfBirth.Value.ToShortDateString() : "N/A")</td>
+                    <td>@cyclist.Email</td>
+                    <td>@cyclist.Phone</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IList<Cyclist>? cyclists;
+    private IList<Cyclist>? filteredCyclists;
+    private string searchText = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cyclists = await CyclistService.GetAllCyclistsAsync();
+        filteredCyclists = cyclists;
+    }
+
+    private void SearchTextChanged(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString() ?? string.Empty;
+        FilterCyclists();
+    }
+
+    private void FilterCyclists()
+    {
+        if (cyclists != null)
+        {
+            filteredCyclists = CyclistService.FilterCyclists(cyclists, searchText);
+        }
+    }
+
+    public string GetCreateUrl()
+    {
+        return "/Cyclists/0";
+    }
+
+    public string GetEditUrl(int id)
+    {
+        return $"/Cyclists/{id}";
+    }
+
+    public void Dispose()
+    {
+        // Cleanup code, if any
+    }
+}

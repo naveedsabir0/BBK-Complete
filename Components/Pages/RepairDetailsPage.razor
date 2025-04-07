@@ -1,0 +1,128 @@
+﻿@page "/repair/{Id:int?}"
+@using MovieDatabaseBlazorServerApp.Models
+@inject RepairService RepairService
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+<h3>Repair Details</h3>
+
+@if (repair != null)
+{
+    <p><strong>Date:</strong> @repair.Date.ToShortDateString()</p>
+    <p><strong>Details:</strong> @repair.Title</p>
+    <p><strong>Total Cost:</strong> @repair.TotalCost.ToString("C")</p>
+
+    <h4>Parts Used</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Cost</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var part in repair.Parts)
+            {
+                <tr>
+                    <td>@part.Name</td>
+                    <td>@part.Cost.ToString("C")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>Repair not found.</p>
+}
+
+@if (repair != null)
+{
+    <h3>Edit Repair</h3>
+
+    <form @onsubmit="HandleSubmit">
+        <div class="form-group">
+            <label for="repairDate">Repair Date:</label>
+            <input type="date" class="form-control" id="repairDate" @bind="repair.Date">
+        </div>
+        <div class="form-group">
+            <label for="repairDetails">Repair Details:</label>
+            <input type="text" class="form-control" id="repairDetails" @bind="repair.Title">
+        </div>
+        <h4>Parts Used</h4>
+        <div class="form-group">
+            <label for="partName">Part Name:</label>
+            <input type="text" class="form-control" id="partName" @bind="partName">
+        </div>
+        <div class="form-group">
+            <label for="partCost">Part Cost:</label>
+            <input type="number" class="form-control" id="partCost" @bind="partCost" step="0.01">
+        </div>
+        <button type="button" class="btn btn-secondary" @onclick="AddPart">Add Part</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+
+    @if (newParts.Any())
+    {
+        <h4>New Parts</h4>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var part in newParts)
+                {
+                    <tr>
+                        <td>@part.Name</td>
+                        <td>@part.Cost.ToString("C")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    Repair repair;
+    string partName;
+    decimal partCost;
+    List<Part> newParts = new List<Part>();
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            repair = await RepairService.GetRepairByIdAsync(Id.Value);
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        // Calculate total cost of parts
+        decimal totalCost = newParts.Sum(p => p.Cost);
+
+        foreach (var part in newParts)
+        {
+            repair.Parts.Add(part);
+        }
+        repair.TotalCost += totalCost;
+
+        await RepairService.UpdateRepairAsync(repair);
+        NavigationManager.NavigateTo($"/repair/{Id}");
+    }
+
+    private void AddPart()
+    {
+        if (!string.IsNullOrWhiteSpace(partName) && partCost > 0)
+        {
+            newParts.Add(new Part { Name = partName, Cost = partCost });
+            partName = string.Empty;
+            partCost = 0;
+        }
+    }
+}

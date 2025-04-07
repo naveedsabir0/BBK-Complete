@@ -1,0 +1,186 @@
+﻿@page "/Bikes/Details/{Id:int}"
+
+@inherits EditablePageBase
+@inject BikeService BikeService
+@inject CyclistService CyclistService
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+
+<PageTitle>@PageTitle</PageTitle>
+<h3>@PageTitle</h3>
+
+@if (BikeData == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <!-- Bike Edit Form -->
+    <EditForm EditContext="CurrentEditContext" OnValidSubmit="HandleBikeSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <!-- Bike ID -->
+        @if (@Id != 0)
+        {
+            <div class="my-3">
+                <DisplayName For="@(() => BikeData.Id)" />
+                <InputNumber class="form-control" @bind-Value="BikeData.Id" readonly />
+            </div>
+        }
+
+        <!-- Bike Make -->
+        <div class="my-3">
+            <DisplayName For="@(() => BikeData.Make)" />
+            <ValidationMessage For="@(() => BikeData.Make)" />
+            <InputText class="form-control" @bind-Value="BikeData.Make" />
+        </div>
+
+        <!-- Bike Model -->
+        <div class="my-3">
+            <DisplayName For="@(() => BikeData.Model)" />
+            <ValidationMessage For="@(() => BikeData.Model)" />
+            <InputText class="form-control" @bind-Value="BikeData.Model" />
+        </div>
+
+        <!-- Bike Cyclist -->
+        <div class="my-3">
+            <DisplayName For="@(() => BikeData.Cyclist)" />
+            <ValidationMessage For="@(() => BikeData.CyclistId)" />
+            <InputSelect class="form-control" @bind-Value="BikeData.CyclistId">
+                <option value="">-- Select Cyclist --</option>
+                @foreach (var cyclist in Cyclists)
+                {
+                    <option value="@cyclist.Id">@($"{cyclist.Forename} {cyclist.Surname}")</option>
+                }
+            </InputSelect>
+        </div>
+
+        <!-- Save Button -->
+        <div class="text-center">
+            <button type="submit" class="btn btn-primary mx-1">Save</button>
+            @if (@Mode == Mode.Edit)
+            {
+                <button type="button" class="btn btn-secondary mx-1" @onclick="DeleteClicked">Delete</button>
+            }
+        </div>
+    </EditForm>
+
+    <!-- Repairs Section -->
+    <h4>Repairs</h4>
+    <div>
+        @if (Repairs == null)
+        {
+            <p><em>Loading...</em></p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Description</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var repair in Repairs)
+                    {
+                        <tr>
+                            <td>@repair.Id</td>
+                            <td>@repair.Title</td>
+                            <td>@repair.Date.ToShortDateString()</td>
+                            <td>
+                                <button class="btn btn-primary" @onclick="() => EditRepair(repair.Id)">Edit</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        <button class="btn btn-success" @onclick="GoToRepairsPage">View All Repairs</button>
+    </div>
+
+    <!-- Cyclist Contact Details -->
+    <h4>Cyclist Contact Details</h4>
+    @if (CyclistDetails == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <p>Name: @CyclistDetails.Forename @CyclistDetails.Surname</p>
+        <p>Email: @CyclistDetails.Email</p>
+        <p>Phone: @CyclistDetails.Phone</p>
+    }
+
+    <!-- Back Button -->
+    <div class="text-center mt-3">
+        <button class="btn btn-secondary" @onclick="GoBack">Back</button>
+    </div>
+}
+
+@code {
+    public Bike BikeData { get; set; }
+    public List<Cyclist> Cyclists { get; set; }
+    public List<Repair> Repairs { get; set; }
+    public Cyclist CyclistDetails { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        PageTitle = $"Bike Details - {Id}";
+
+        Cyclists = await CyclistService.GetAllCyclistsAsync();
+        BikeData = await BikeService.GetBikeByIdAsync(Id);
+        Repairs = await BikeService.GetRepairsByBikeIdAsync(Id);
+        CyclistDetails = await BikeService.GetCyclistContactDetailsByBikeIdAsync(Id);
+
+        CurrentEditContext = new EditContext(BikeData);
+    }
+
+    public async Task HandleBikeSubmit()
+    {
+        if (Mode == Mode.Create)
+        {
+            await BikeService.AddBikeAsync(BikeData);
+        }
+        else if (Mode == Mode.Edit)
+        {
+            await BikeService.UpdateBikeAsync(BikeData);
+        }
+
+        NavigationManager.NavigateTo("/Bikes");
+    }
+
+    public async Task DeleteClicked()
+    {
+        var delete = await JS.Confirm($"Delete bike {BikeData.Make} {BikeData.Model}?");
+        if (delete)
+        {
+            await BikeService.DeleteBikeAsync(BikeData.Id);
+
+            NavigationManager.NavigateTo("/Bikes");
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/Bikes");
+    }
+
+    private void GoToRepairsPage()
+    {
+        NavigationManager.NavigateTo("/Repairs");
+    }
+
+    private void AddNewRepair()
+    {
+        NavigationManager.NavigateTo("/Repairs");
+    }
+
+    private void EditRepair(int repairId)
+    {
+        NavigationManager.NavigateTo($"/Repairs/{repairId}");
+    }
+}

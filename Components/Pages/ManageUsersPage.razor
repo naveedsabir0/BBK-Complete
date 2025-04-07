@@ -1,0 +1,60 @@
+﻿@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+@page "/Users"
+@inherits PageBase
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>@PageTitle</PageTitle>
+<h3>@PageTitle</h3>
+
+<AuthorizeView Roles="@(Roles.Admin)">
+    <NavLink class="nav-link" href="@GetEditUrl("new")">Create</NavLink>
+</AuthorizeView>
+
+@if (users == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th><DisplayName For="@(() => users.FirstOrDefault().Name)" /></th>
+                <th><DisplayName For="@(() => users.FirstOrDefault().Email)" /></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td><NavLink class="nav-link" href="@GetEditUrl(user.Id)">@user.Name</NavLink></td>
+                    <td><NavLink class="nav-link" href="@GetEditUrl(user.Id)">@user.Email</NavLink></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IList<UserSummary>? users;
+
+    protected override async Task OnInitializedAsync()
+    {
+        PageTitle = "Manage Users";
+
+        users = UserManager
+                .Users
+                .OrderBy(u => u.Email)
+                .Select(u => new UserSummary(u))
+                .ToList();
+    }
+
+    public string GetEditUrl(string id)
+    {
+        if (CurrentUser.IsAdmin())
+        {
+            return $"/Users/{id}";
+        }
+        return NavigationManager.Uri;
+    }
+}

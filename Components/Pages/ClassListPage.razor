@@ -1,0 +1,156 @@
+﻿@page "/Classes"
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+@inject ClassService ClassService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Class List</PageTitle>
+
+<div class="container">
+    <h3>Class List</h3>
+
+    <div class="filters">
+        <div class="filter">
+            <label for="filterMonth">Filter by Month:</label>
+            <select id="filterMonth" @bind="filterMonth">
+                <option value="">Select Month</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+            </select>
+        </div>
+
+        <div class="filter">
+            <label for="filterVolunteer">Filter by Volunteer:</label>
+            <select id="filterVolunteer" @bind="filterVolunteer">
+                <option value="">Select Volunteer</option>
+                @if (VolunteerDetails != null)
+                {
+                    @foreach (var volunteer in VolunteerDetails)
+                    {
+                        <option value="@volunteer.Id">@volunteer.Forename @volunteer.Surname</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <button class="btn btn-primary" @onclick="FilterClasses">Filter</button>
+    </div>
+
+    @if (Classes == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else if (Classes.Count == 0)
+    {
+        <p><em>No classes found for the selected filters.</em></p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Date</th>
+                    <th>Cyclists</th>
+                    <th>Volunteer</th>
+                    <th>Attendance Count</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var classObj in FilteredClasses)
+                {
+                    <tr>
+                        <td>@classObj.Title</td>
+                        <td>@classObj.Date.ToShortDateString()</td>
+                        <td>
+                            @foreach (var cyclist in classObj.Cyclists)
+                            {
+                                <div>@cyclist.Forename @cyclist.Surname</div>
+                            }
+                        </td>
+                        <td>@classObj.Volunteer?.Forename @classObj.Volunteer?.Surname</td>
+                        <td>@classObj.AttendanceCount</td>
+                        <td>
+                            <button class="btn btn-primary" @onclick="() => EditClass(classObj.Id)">Edit</button>
+                            <button class="btn btn-danger" @onclick="() => DeleteClass(classObj.Id)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <button class="btn btn-success create-btn" @onclick="CreateClass">Create New Class</button>
+</div>
+
+@code {
+    private List<Class> Classes;
+    private int filterMonth;
+    private int filterVolunteer;
+    private List<Volunteer> VolunteerDetails { get; set; }
+
+    // Filtered classes based on both month and volunteer selection
+    private List<Class> FilteredClasses { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadClassesAsync();
+    }
+
+    private async Task LoadClassesAsync()
+    {
+        // Load all classes
+        Classes = await ClassService.GetAllClassesAsync();
+
+        // Fetch volunteer details
+        VolunteerDetails = await ClassService.GetAllVolunteersAsync();
+
+        // Calculate attendance count for each class
+        foreach (var classObj in Classes)
+        {
+            classObj.AttendanceCount = await ClassService.GetClassAttendanceCountAsync(classObj.Id);
+        }
+
+        // Filter classes based on both month and volunteer selection
+        FilteredClasses = Classes;
+        if (filterMonth > 0)
+        {
+            FilteredClasses = FilteredClasses.Where(c => c.Date.Month == filterMonth).ToList();
+        }
+        if (filterVolunteer > 0)
+        {
+            FilteredClasses = FilteredClasses.Where(c => c.Volunteer?.Id == filterVolunteer).ToList();
+        }
+    }
+
+    private void EditClass(int id)
+    {
+        NavigationManager.NavigateTo($"/Class/{id}");
+    }
+
+    private void CreateClass()
+    {
+        NavigationManager.NavigateTo("/Class/0");
+    }
+
+    private async Task DeleteClass(int id)
+    {
+        await ClassService.DeleteClassAsync(id);
+        await LoadClassesAsync();
+    }
+
+    private async Task FilterClasses()
+    {
+        await LoadClassesAsync();
+    }
+}

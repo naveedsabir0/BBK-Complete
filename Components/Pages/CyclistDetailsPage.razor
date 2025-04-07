@@ -1,0 +1,230 @@
+﻿@page "/Cyclists/{Id:int}"
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+@inherits EditablePageBase
+@inject CyclistService CyclistService
+@inject BikeService BikeService
+@inject UploadedFileToFolderService UploadedFileToFolderService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@PageTitle</PageTitle>
+<h3>@PageTitle</h3>
+
+@if (CyclistData == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm EditContext="CurrentEditContext" OnValidSubmit="HandleCyclistSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        @if (@Id != 0)
+        {
+            <div class="my-3">
+                <DisplayName For="@(() => CyclistData.Id)" />
+                <InputNumber class="form-control" @bind-Value="CyclistData.Id" readonly />
+            </div>
+        }
+
+        <div class="my-3">
+            <DisplayName For="@(() => CyclistData.Forename)" />
+            <ValidationMessage For="@(() => CyclistData.Forename)" />
+            <InputText class="form-control" @bind-Value="CyclistData.Forename" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => CyclistData.Surname)" />
+            <ValidationMessage For="@(() => CyclistData.Surname)" />
+            <InputText class="form-control" @bind-Value="CyclistData.Surname" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => CyclistData.DateOfBirth)" />
+            <ValidationMessage For="@(() => CyclistData.DateOfBirth)" />
+            <InputDate class="form-control" @bind-Value="CyclistData.DateOfBirth" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => CyclistData.Email)" />
+            <ValidationMessage For="@(() => CyclistData.Email)" />
+            <InputText class="form-control" @bind-Value="CyclistData.Email" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => CyclistData.Phone)" />
+            <ValidationMessage For="@(() => CyclistData.Phone)" />
+            <InputText class="form-control" @bind-Value="CyclistData.Phone" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => CyclistData.Address)" />
+            <ValidationMessage For="@(() => CyclistData.Address)" />
+            <InputText class="form-control" @bind-Value="CyclistData.Address" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => CyclistData.ImageFileName)" />
+            <InputFile OnChange="@LoadImageFile" />
+        </div>
+
+        @{
+            if (!string.IsNullOrEmpty(CyclistData.ImageFileName) || ImageFile != null)
+            {
+                <div class="my-3">
+                    <label>(Existing Photo)</label>
+                    <div>
+                        <img class="form_image_preview" src="@GetImageFileData()" />
+                        <button type="button" @onclick="@ClearExistingImage" class="btn btn-secondary">Clear existing image</button>
+                    </div>
+                </div>
+            }
+        }
+
+        <h4>Bikes</h4>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Bike ID</th>
+                    <th>Make</th>
+                    <th>Model</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var bike in CyclistData.Bikes)
+                {
+                    <tr>
+                        <td>@bike.Id</td>
+                        <td>@bike.Make</td>
+                        <td>@bike.Model</td>
+                        <td>
+                            <button @onclick="() => NavigateToBikeDetails(bike.Id)" class="btn btn-primary">View Repairs</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @if (selectedBike != null)
+        {
+            <h4>Repairs for @selectedBike.Model</h4>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Repair ID</th>
+                        <th>Description</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var repair in selectedBike.Repairs)
+                    {
+                        <tr>
+                            <td>@repair.Id</td>
+                            <td>@repair.Title</td>
+                            <td>@repair.Date.ToShortDateString()</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <div class="text-center">
+            <button type="submit" class="btn btn-primary mx-1">Save</button>
+            @if (@Mode == Mode.Edit)
+            {
+                <button type="button" class="btn btn-secondary mx-1" @onclick="DeleteClicked">Delete</button>
+            }
+        </div>
+    </EditForm>
+}
+
+@code {
+    public Cyclist CyclistData { get; set; }
+
+    public UploadedFile? ImageFile { get; set; }
+
+    private Bike selectedBike { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        PageTitle = $"{Mode.ToString()} Cyclist";
+
+        if (Mode == Mode.Edit)
+        {
+            CyclistData = await CyclistService.GetCyclistByIdAsync(Id);
+        }
+        else
+        {
+            CyclistData = new Cyclist();
+        }
+
+        CurrentEditContext = new EditContext(CyclistData);
+    }
+
+    public async Task HandleCyclistSubmit()
+    {
+        if (Mode == Mode.Create)
+        {
+            await CyclistService.AddCyclistAsync(CyclistData);
+        }
+        else if (Mode == Mode.Edit)
+        {
+            await CyclistService.UpdateCyclistAsync(CyclistData);
+        }
+
+        NavigationManager.NavigateTo("/Cyclists");
+    }
+
+    public async Task DeleteClicked()
+    {
+        var delete = await JS.Confirm($"Delete cyclist {CyclistData.Name}?");
+        if (delete)
+        {
+            await CyclistService.DeleteCyclistAsync(CyclistData.Id);
+            NavigationManager.NavigateTo("/Cyclists");
+        }
+    }
+
+    private async void LoadImageFile(InputFileChangeEventArgs e)
+    {
+        ImageFile = await e.File.ConvertToUploadedFileAsync();
+        if (ImageFile != null)
+        {
+            CyclistData.ImageFileName = null;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearExistingImage()
+    {
+        CyclistData.ImageToDeleteFileName = CyclistData.ImageFileName;
+        CyclistData.ImageFileName = null;
+        ImageFile = null;
+        StateHasChanged();
+    }
+
+    private string? GetImageFileData()
+    {
+        if (ImageFile != null)
+        {
+            return ImageFile.ConvertToBrowserRenderableFile();
+        }
+        else
+        {
+            return CyclistData.ImageFileName;
+        }
+    }
+
+    private void NavigateToBikeDetails(int bikeId)
+    {
+        NavigationManager.NavigateTo($"/Bikes");
+    }
+
+    private void ShowRepairs(Bike bike)
+    {
+        selectedBike = bike;
+        StateHasChanged();
+    }
+}

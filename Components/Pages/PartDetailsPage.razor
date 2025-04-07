@@ -1,0 +1,97 @@
+﻿@page "/part-details"
+@using MovieDatabaseBlazorServerApp.Models
+@inject PartService PartService
+@inject NavigationManager NavigationManager
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+<h3>Part Details</h3>
+
+<div class="form-group">
+    <label for="selectedMonth">Select Month:</label>
+    <input type="month" class="form-control" id="selectedMonth" @bind="selectedMonth">
+    <button class="btn btn-primary" @onclick="LoadParts">View Parts</button>
+</div>
+
+@if (partsUsage != null && partsUsage.PartsDetails.Any())
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Part Type</th>
+                <th>Count</th>
+                <th>Cost</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var part in partsUsage.PartsDetails)
+            {
+                <tr>
+                    <td>@part.Type</td>
+                    <td>@part.Count</td>
+                    <td>@part.Cost.ToString("C")</td>
+                </tr>
+            }
+            <tr>
+                <td><strong>Total Parts Used</strong></td>
+                <td><strong>@partsUsage.TotalPartsUsed</strong></td>
+                <td><strong>@partsUsage.TotalCost.ToString("C")</strong></td>
+            </tr>
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No parts used for the selected month.</p>
+}
+
+<button class="btn btn-secondary" @onclick="NavigateBack">Back</button>
+
+@code {
+    PartUsage partsUsage;
+    DateTime selectedMonth = DateTime.Today;
+
+    private async Task LoadParts()
+    {
+        var (totalPartsUsed, partsCount) = await PartService.GetPartsUsageForMonthAsync(selectedMonth);
+
+        // Convert partsCount dictionary to a list of PartDetail objects
+        var partsDetails = partsCount.Select(kvp => new PartDetail
+            {
+                Type = kvp.Key,
+                Count = kvp.Value,
+                Cost = CalculatePartCost(kvp.Key) // Implement this method to calculate cost based on part type
+            }).ToList();
+
+        // Populate the PartUsage object
+        partsUsage = new PartUsage
+            {
+                TotalPartsUsed = totalPartsUsed,
+                PartsDetails = partsDetails,
+                TotalCost = partsDetails.Sum(p => p.Cost)
+            };
+    }
+
+    public class PartUsage
+    {
+        public int TotalPartsUsed { get; set; }
+        public List<PartDetail> PartsDetails { get; set; }
+        public decimal TotalCost { get; set; }
+    }
+
+    public class PartDetail
+    {
+        public string Type { get; set; }
+        public int Count { get; set; }
+        public decimal Cost { get; set; }
+    }
+
+    private decimal CalculatePartCost(string partType)
+    {
+        // Implement logic to calculate cost based on part type
+        return 10.00m; // Placeholder value
+    }
+
+    private void NavigateBack()
+    {
+        NavigationManager.NavigateTo("/parts");
+    }
+}

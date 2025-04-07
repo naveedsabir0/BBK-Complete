@@ -1,0 +1,286 @@
+﻿@attribute [Authorize(Roles = $"{Roles.Admin}")]
+@page "/Users/{UserId}"
+@inherits EditablePageBase
+
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+
+<PageTitle>@PageTitle</PageTitle>
+<h3>@PageTitle</h3>
+
+@if (UserData == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm EditContext="CurrentEditContext" OnValidSubmit="HandleUserSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        @if (@Mode == Mode.Edit)
+        {
+            <div class="my-3">
+                <DisplayName For="@(() => UserData.Id)" />
+                <InputText class="form-control"
+                           @bind-Value="UserData.Id"
+                           readonly />
+            </div>
+        }
+
+        <div class="my-3">
+            <DisplayName For="@(() => UserData.Email)" />
+            <ValidationMessage For="@(() => UserData.Email)" />
+            <InputText class="form-control" @bind-Value="UserData.Email" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => UserData.FirstName)" />
+            <ValidationMessage For="@(() => UserData.FirstName)" />
+            <InputText class="form-control" @bind-Value="UserData.FirstName" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => UserData.LastName)" />
+            <ValidationMessage For="@(() => UserData.LastName)" />
+            <InputText class="form-control" @bind-Value="UserData.LastName" />
+        </div>
+
+        <div class="my-3">
+            <label>Roles</label>
+        </div>
+
+        <div class="my-3">
+            @Roles.Admin
+            <InputCheckbox @bind-Value="UserData.Admin" disabled="@UserDataIsCurrentUser()" class="form-check-input" />
+
+            @Roles.Staff
+            <InputCheckbox @bind-Value="UserData.Staff" class="form-check-input" />
+
+            @Roles.Premium
+            <InputCheckbox @bind-Value="UserData.Premium" class="form-check-input" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => UserData.Password)" />
+            <ValidationMessage For="@(() => UserData.Password)" />
+            <InputText class="form-control" @bind-Value="UserData.Password" type="password" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => UserData.PasswordConfirmation)" />
+            <ValidationMessage For="@(() => UserData.PasswordConfirmation)" />
+            <InputText class="form-control" @bind-Value="UserData.PasswordConfirmation" type="password" />
+        </div>
+
+        <div class="my-3">
+            <DisplayName For="@(() => UserData.Enabled)" />
+            <InputCheckbox @bind-Value="UserData.Enabled" disabled="@UserDataIsCurrentUser()" class="form-check-input" />
+        </div>
+
+        <div class="text-center">
+            <button type="submit" class="btn btn-primary mx-1">Save</button>
+        </div>
+    </EditForm>
+}
+@code {
+    [Parameter]
+    public string UserId { get; set; }
+
+    public Mode Mode => UserId.ToLower() == "new" ? Mode.Create : Mode.Edit;
+
+    public EditableUser UserData { get; set; }
+
+    private bool UserDataIsCurrentUser()
+    {
+        if (UserData.Id == CurrentUser.GetUserId())
+        {
+            return true;
+        }
+        return false;
+    }
+
+    protected async override Task OnParametersSetAsync()
+    {
+        PageTitle = $"{Mode.ToString()} User";
+
+        if (Mode == Mode.Edit)
+        {
+            var user = await UserManager.FindByIdAsync(UserId);
+            if (user == null)
+            {
+                throw new Exception($"User with Id of {UserId} not found");
+            }
+
+            var userRoles = await UserManager.GetRolesAsync(user);
+
+            UserData = new EditableUser()
+                {
+                    Id = user.Id,
+                    Email = user.Email,
+                    FirstName = user.Firstname,
+                    LastName = user.Lastname,
+                    Enabled = user.Enabled,
+                    Admin = userRoles.Contains(Roles.Admin),
+                    Staff = userRoles.Contains(Roles.Staff),
+                    Premium = userRoles.Contains(Roles.Premium)
+                };
+        }
+        else
+        {
+            UserData = new EditableUser();
+        }
+
+        CurrentEditContext = new(UserData);
+        CurrentEditContext.OnValidationRequested += HandleValidationRequested;
+        MessageStore = new ValidationMessageStore(CurrentEditContext);
+    }
+
+    private void HandleValidationRequested(object? sender, ValidationRequestedEventArgs args)
+    {
+        MessageStore.Clear();
+
+        if (!string.IsNullOrEmpty(UserData.Password)
+                    && !string.IsNullOrEmpty(UserData.PasswordConfirmation)
+                    && (UserData.Password != UserData.PasswordConfirmation))
+        {
+            MessageStore.Add(() => UserData.Password, "Password does not match with Confirm Password!");
+            MessageStore.Add(() => UserData.PasswordConfirmation, "Confirm Password does not match with Password!");
+        }
+
+        if (string.IsNullOrEmpty(UserData.Password)
+                && string.IsNullOrEmpty(UserData.Id))
+        {
+            MessageStore.Add(() => UserData.Password, "Password must be provided when creating a new account!");
+        }
+
+        if (string.IsNullOrEmpty(UserData.PasswordConfirmation)
+                && string.IsNullOrEmpty(UserData.Id))
+        {
+            MessageStore.Add(() => UserData.PasswordConfirmation, "Confirm Password must be provided when creating a new account!");
+        }
+
+        // set up a LINQ query to get user matching the email address input in the form
+        var existingEmailUserQuery = UserManager.Users.Where(a => a.Email == UserData.Email);
+        if (Mode == Mode.Edit)
+        {
+            // if we're editing an existing user, we want to exclude it from the query as we want to check every other user except the one we're editing
+            // LINQ allows us to selectively add clauses to a query based on logic decisions, we don't need to form a query all at once
+            existingEmailUserQuery = existingEmailUserQuery.Where(a => a.Id != UserData.Id);
+        }
+
+        // check to see if a user with the email address input exists already
+        var existingEmailUser = existingEmailUserQuery.SingleOrDefault();
+        if (existingEmailUser != null)
+        {
+            MessageStore.Add(() => UserData.Email, $"User with email of {UserData.Email} already exists!");
+        }
+    }
+
+    private async Task HandleUserSubmit()
+    {
+        bool success = false;
+
+        try
+        {
+            if (UserData != null && Mode == Mode.Edit)
+            {
+                var user = await UserManager.FindByIdAsync(UserId);
+                if (user == null)
+                {
+                    throw new Exception($"User with Id of {UserId} not found");
+                }
+
+                user.UserName = user.Email = UserData.Email;
+                user.Firstname = UserData.FirstName;
+                user.Lastname = UserData.LastName;
+                user.Enabled = UserData.Enabled;
+
+                await this.AddOrRemoveRolesFromUser(user);
+                await UserManager.SetLockoutEnabledAsync(user, false);
+
+                if (!string.IsNullOrEmpty(UserData.Password) && !string.IsNullOrEmpty(UserData.PasswordConfirmation))
+                {
+                    var resetPasswordToken = await UserManager.GeneratePasswordResetTokenAsync(user);
+                    await UserManager.ResetPasswordAsync(user, resetPasswordToken, UserData.Password);
+                }
+
+                success = (await UserManager.UpdateAsync(user)).Succeeded;
+            }
+            else
+            {
+                var user = new ApplicationUser()
+                    {
+                        Email = UserData.Email,
+                        SecurityStamp = Guid.NewGuid().ToString(),
+                        UserName = UserData.Email,
+                        Firstname = UserData.FirstName,
+                        Lastname = UserData.LastName,
+                        Enabled = UserData.Enabled
+                    };
+
+                success = (await UserManager.CreateAsync(user, UserData.Password)).Succeeded;
+                if (!success)
+                {
+                    throw new Exception("User creation failed! Please check user details and try again.");
+                }
+
+                await this.AddOrRemoveRolesFromUser(user);
+                await UserManager.SetLockoutEnabledAsync(user, false);
+            }
+
+            if (success)
+            {
+                NavigationManager.NavigateTo("/Users");
+            }
+        }
+        catch (Exception ex)
+        {
+            await this.JS.Alert($"Error - Operation failed! {ex.Message}");
+        }
+    }
+
+    private async Task AddOrRemoveRolesFromUser(ApplicationUser user)
+    {
+        await this.AddOrRemoveRoleFromUserAsync(user, Roles.Admin, UserData.Admin);
+        await this.AddOrRemoveRoleFromUserAsync(user, Roles.Staff, UserData.Staff);
+        await this.AddOrRemoveRoleFromUserAsync(user, Roles.Premium, UserData.Premium);
+    }
+
+    private async Task<bool> AddOrRemoveRoleFromUserAsync(ApplicationUser user, string role, bool addUserToRole)
+    {
+        // check stated role actually exists
+        if (!RoleManager.Roles.Select(r => r.Name).Contains(role))
+        {
+            return false;
+        }
+
+        // get list of roles assigned to this user
+        var userRoles = await UserManager.GetRolesAsync(user);
+
+        // check to see if user already in role
+        // you cannot remove a user from a role they're already in
+        // and you cannot add them to a role twice
+        // both are errors and we need to code to prevent them
+        var alreadyInRole = userRoles.Contains(role);
+
+        // now add or remove the role from user as necessary
+        bool success = false;
+        if (addUserToRole && !alreadyInRole)
+        {
+            var ir = await UserManager.AddToRoleAsync(user, role);
+            success = ir.Succeeded;
+        }
+        else if (!addUserToRole && alreadyInRole)
+        {
+            var ir = await UserManager.RemoveFromRoleAsync(user, role);
+            success = ir.Succeeded;
+        }
+        else
+        {
+            success = true;
+        }
+
+        return success;
+    }
+}

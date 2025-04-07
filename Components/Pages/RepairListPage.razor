@@ -1,0 +1,147 @@
+﻿@page "/repairs"
+@using MovieDatabaseBlazorServerApp.Models
+@inject RepairService RepairService
+@inject BikeService BikeService
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+<h3>Book Bike Repair</h3>
+
+<form @onsubmit="HandleSubmit">
+    <div class="form-group">
+        <label for="bikeId">Select Bike:</label>
+        <select class="form-control" id="bikeId" @bind="bikeId">
+            <option value="">Select Bike</option>
+            @if (bikes != null)
+            {
+                @foreach (var bike in bikes)
+                {
+                    <option value="@bike.Id">@bike.Make</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="faults">Fault(s):</label>
+        <textarea class="form-control" id="faults" @bind="faults"></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Book Repair</button>
+</form>
+
+<h3>Repair List</h3>
+
+@if (repairs != null && repairs.Any())
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Details</th>
+                <th>Total Cost</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var repair in repairs)
+            {
+                <tr>
+                    <td>@repair.Date.ToShortDateString()</td>
+                    <td>@repair.Title</td>
+                    <td>@repair.TotalCost.ToString("C")</td>
+                    <td>
+                        <a href="/repair/@repair.Id">View Details</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No repairs found.</p>
+}
+
+<h3>Repair Statistics</h3>
+
+<div class="form-group">
+    <label for="selectedMonth">Select Month:</label>
+    <select class="form-control" id="selectedMonth" @bind="selectedMonth">
+        @{
+            var monthNames = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.MonthNames;
+            for (int month = 1; month <= 12; month++)
+            {
+                <option value="@month">@monthNames[month - 1]</option>
+            }
+        }
+    </select>
+    <button class="btn btn-secondary" @onclick="HandleMonthChange">Show Stats</button>
+</div>
+
+@if (repairStats != null)
+{
+    <p><strong>Number of Repairs:</strong> @repairStats.RepairCount</p>
+    <p><strong>Average Cost of Repairs:</strong> @repairStats.AverageCost.ToString("C")</p>
+}
+else
+{
+    <p>Select a month to view statistics.</p>
+}
+
+@code {
+    List<Repair> repairs;
+    List<Bike> bikes;
+    int bikeId;
+    string faults;
+    int selectedMonth;
+    RepairStats repairStats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        repairs = await RepairService.GetAllRepairsAsync();
+        bikes = await BikeService.GetAllBikesAsync();
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (bikeId != 0 && !string.IsNullOrWhiteSpace(faults))
+        {
+            var selectedBike = bikes.FirstOrDefault(b => b.Id == bikeId);
+            if (selectedBike != null)
+            {
+                var cyclistId = selectedBike.CyclistId;
+
+                var faultList = faults.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+                                      .Select(f => f.Trim())
+                                      .ToList();
+
+                var partsUsed = faultList.Select(fault => new Part { Name = fault, Cost = 0 }).ToList();
+
+                await RepairService.RecordBikeRepairDetailsAsync(bikeId, DateTime.Now, "Bike Repair", partsUsed);
+
+                repairs = await RepairService.GetAllRepairsAsync();
+
+                bikeId = 0;
+                faults = string.Empty;
+            }
+        }
+        else
+        {
+            // Handle validation errors or incomplete input
+        }
+    }
+
+    private async Task HandleMonthChange()
+    {
+        var selectedDate = new DateTime(DateTime.Now.Year, selectedMonth, 1);
+        var stats = await RepairService.GetRepairStatsForMonthAsync(selectedDate);
+        repairStats = new RepairStats
+            {
+                RepairCount = stats.RepairCount,
+                AverageCost = stats.AverageCost
+            };
+    }
+
+    private class RepairStats
+    {
+        public int RepairCount { get; set; }
+        public decimal AverageCost { get; set; }
+    }
+}

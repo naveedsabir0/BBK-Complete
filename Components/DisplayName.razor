@@ -1,0 +1,59 @@
+﻿@using System.Linq
+@using System.Reflection
+@using System.ComponentModel
+@using System.Linq.Expressions
+@using System.ComponentModel.DataAnnotations
+
+@typeparam TProperty
+
+@if (ChildContent == null)
+{
+    @if (EmitAsLabel)
+    {
+       <label>@label</label>
+    }
+    else
+    {
+        @label
+    }
+}
+else
+{
+    @if (EmitAsLabel)
+    {
+        <label>
+            @label
+            @ChildContent
+        </label>
+    }
+    else
+    {
+        @label
+        @ChildContent
+    }
+}
+
+
+@code {
+    // mostly based on https://stackoverflow.com/questions/76966217/equivalent-in-blazor-for-html-displaynamefor-and-html-displayfor
+    // and https://stackoverflow.com/questions/57202354/how-to-put-the-display-name-in-a-label-on-a-blazor-page
+
+    [Parameter]
+    public Expression<Func<TProperty>> For { get; set; }
+
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+
+    [Parameter]
+    public bool EmitAsLabel { get; set; } = false;
+
+    private string label => GetDisplayName();
+
+    private string GetDisplayName()
+    {
+        var expression = (MemberExpression)For.Body;
+        var displayAttributeValue = expression.Member.GetCustomAttribute(typeof(DisplayAttribute)) as DisplayAttribute;
+        var displayNameAttributeValue = expression.Member.GetCustomAttribute(typeof(DisplayNameAttribute)) as DisplayNameAttribute;
+        return displayAttributeValue?.Name ?? displayNameAttributeValue?.DisplayName ?? expression.Member.Name ?? "";
+    }
+}

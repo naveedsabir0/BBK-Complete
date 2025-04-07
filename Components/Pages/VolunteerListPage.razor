@@ -1,0 +1,137 @@
+﻿@page "/volunteer"
+@using MovieDatabaseBlazorServerApp.Models
+@inject VolunteerService VolunteerService
+@inject IJSRuntime JSRuntime
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+<h3>Add New Volunteer</h3>
+
+<div class="form-group">
+    <label for="volunteerForename">Volunteer Forename:</label>
+    <input type="text" class="form-control" id="volunteerForename" @bind="newVolunteer.Forename">
+</div>
+
+<div class="form-group">
+    <label for="volunteerSurname">Volunteer Surname:</label>
+    <input type="text" class="form-control" id="volunteerSurname" @bind="newVolunteer.Surname">
+</div>
+
+<div class="form-group">
+    <label for="volunteerEmail">Volunteer Email:</label>
+    <input type="email" class="form-control" id="volunteerEmail" @bind="newVolunteer.Email">
+</div>
+
+<div class="form-group">
+    <label for="volunteerPhone">Volunteer Phone:</label>
+    <input type="tel" class="form-control" id="volunteerPhone" @bind="newVolunteer.Phone">
+</div>
+
+<div class="form-group">
+    <label for="volunteerAddress">Volunteer Address:</label>
+    <input type="text" class="form-control" id="volunteerAddress" @bind="newVolunteer.Address">
+</div>
+
+<button class="btn btn-success" @onclick="AddVolunteer">Add Volunteer</button>
+
+<hr />
+
+<h3>All Volunteers</h3>
+
+@if (allVolunteers != null && allVolunteers.Any())
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Forename</th>
+                <th>Surname</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Address</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var volunteer in allVolunteers)
+            {
+                <tr>
+                    <td>@volunteer.Forename</td>
+                    <td>@volunteer.Surname</td>
+                    <td>@volunteer.Email</td>
+                    <td>@volunteer.Phone</td>
+                    <td>@volunteer.Address</td>
+                    <td>
+                        <a href="/volunteerDetails/@volunteer.Id" class="btn btn-primary">Edit</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No volunteers found.</p>
+}
+
+<hr />
+
+<h3>Volunteer List</h3>
+
+<div class="form-group">
+    <label for="selectedMonth">Select Month:</label>
+    <input type="month" class="form-control" id="selectedMonth" @bind="selectedMonth">
+    <button class="btn btn-primary" @onclick="LoadVolunteers">View Volunteers</button>
+</div>
+
+@if (volunteerStatistics != null && volunteerStatistics.Any())
+{
+    <div class="card-deck">
+        @foreach (var item in volunteerStatistics)
+        {
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Volunteer: @item.Key</h5>
+                    <p class="card-text">Total Time Spent: @item.Value.totalTime minutes</p>
+                    <p class="card-text">Average Time per Repair: @item.Value.averageTime minutes</p>
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (volunteerStatistics != null)
+{
+    <p>No volunteer statistics available for the selected month.</p>
+}
+
+@code {
+    DateTime selectedMonth = DateTime.Today;
+    Dictionary<string, (int totalTime, double averageTime)> volunteerStatistics;
+    Volunteer newVolunteer = new Volunteer();
+    List<Volunteer> allVolunteers;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVolunteers();
+    }
+
+    private async Task LoadVolunteers()
+    {
+        allVolunteers = await VolunteerService.GetAllVolunteersAsync();
+        volunteerStatistics = await VolunteerService.GetRepairStatisticsForMonthAsync(selectedMonth);
+        StateHasChanged(); // Ensure the UI updates after data retrieval
+    }
+
+    private async Task AddVolunteer()
+    {
+        try
+        {
+            await VolunteerService.AddVolunteerAsync(newVolunteer);
+            newVolunteer = new Volunteer(); // Clear the form for the next entry
+            allVolunteers = await VolunteerService.GetAllVolunteersAsync(); // Refresh the list of volunteers
+            StateHasChanged(); // Ensure the UI updates after adding a new volunteer
+        }
+        catch (Exception ex)
+        {
+            // Handle any exceptions, such as validation errors
+            Console.WriteLine($"Error adding volunteer: {ex.Message}");
+        }
+    }
+}

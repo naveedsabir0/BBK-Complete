@@ -1,0 +1,141 @@
+﻿@page "/Class/{Id:int}"
+@attribute [Authorize(Roles = $"{Roles.Admin},{Roles.Staff}")]
+@inject ClassService ClassService
+@inject CyclistService CyclistService
+@inject VolunteerService VolunteerService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@PageTitle</PageTitle>
+<h3>@PageTitle</h3>
+
+@if (ClassData == null || Cyclists == null || Volunteers == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm EditContext="CurrentEditContext" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        @if (Id != 0)
+        {
+            <div class="my-3">
+                <label>Id</label>
+                <InputNumber class="form-control" @bind-Value="ClassData.Id" readonly />
+            </div>
+        }
+
+        <div class="my-3">
+            <label>Title</label>
+            <ValidationMessage For="@(() => ClassData.Title)" />
+            <InputText class="form-control" @bind-Value="ClassData.Title" />
+        </div>
+
+        <div class="my-3">
+            <label>Date</label>
+            <ValidationMessage For="@(() => ClassData.Date)" />
+            <InputDate class="form-control" @bind-Value="ClassData.Date" />
+        </div>
+
+        <div class="my-3">
+            <label>Cyclists</label>
+            @foreach (var cyclist in Cyclists)
+            {
+                <div>
+                    <input type="checkbox" checked="@IsCyclistSelected(cyclist)" @onchange="(e) => ToggleCyclist(e, cyclist)" />
+                    @cyclist.Forename @cyclist.Surname
+                </div>
+            }
+        </div>
+
+        <div class="my-3">
+            <label>Volunteer</label>
+            <select class="form-control" @bind="ClassData.VolunteerId">
+                @foreach (var volunteer in Volunteers)
+                {
+                    <option value="@volunteer.Id">@volunteer.Forename @volunteer.Surname</option>
+                }
+            </select>
+        </div>
+
+        <div class="text-center">
+            <button type="submit" class="btn btn-primary mx-1">Save</button>
+            @if (Id != 0)
+            {
+                <button type="button" class="btn btn-danger mx-1" @onclick="DeleteClass">Delete</button>
+            }
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private string PageTitle => Id == 0 ? "Create Class" : "Edit Class";
+
+    private Class ClassData { get; set; }
+    private List<Cyclist> Cyclists { get; set; }
+    private List<Volunteer> Volunteers { get; set; }
+    private EditContext CurrentEditContext;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Cyclists = await CyclistService.GetAllCyclistsAsync();
+        Volunteers = await VolunteerService.GetAllVolunteersAsync();
+
+        if (Id == 0)
+        {
+            ClassData = new Class { Date = DateOnly.FromDateTime(DateTime.Today) };
+        }
+        else
+        {
+            ClassData = await ClassService.GetClassByIdAsync(Id);
+        }
+
+        CurrentEditContext = new EditContext(ClassData);
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (Id == 0)
+        {
+            await ClassService.AddClassAsync(ClassData);
+        }
+        else
+        {
+            await ClassService.UpdateClassAsync(ClassData);
+        }
+
+        NavigationManager.NavigateTo("/Classes");
+    }
+
+    private async Task DeleteClass()
+    {
+        await ClassService.DeleteClassAsync(Id);
+        NavigationManager.NavigateTo("/Classes");
+    }
+
+    private void ToggleCyclist(ChangeEventArgs e, Cyclist cyclist)
+    {
+        if ((bool)e.Value)
+        {
+            if (!ClassData.Cyclists.Any(c => c.Id == cyclist.Id))
+            {
+                ClassData.Cyclists.Add(cyclist);
+            }
+        }
+        else
+        {
+            var item = ClassData.Cyclists.FirstOrDefault(c => c.Id == cyclist.Id);
+            if (item != null)
+            {
+                ClassData.Cyclists.Remove(item);
+            }
+        }
+    }
+
+    private bool IsCyclistSelected(Cyclist cyclist)
+    {
+        return ClassData.Cyclists.Any(c => c.Id == cyclist.Id);
+    }
+}
